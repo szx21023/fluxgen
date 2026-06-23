@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app import jobs
-from app.config import BASE_DIR, UPLOAD_DIR, settings
+from app.config import OUTPUT_DIR, UPLOAD_DIR, settings
 from app.schemas import CreateTextJobRequest, JobKind, JobResponse
 
 app = FastAPI(title="AI 影片生成 API", version="0.1.0")
@@ -18,8 +18,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 把 outputs/ 與 uploads/ 以靜態檔案方式公開，前端可直接播放
-app.mount("/files", StaticFiles(directory=BASE_DIR), name="files")
+# 只把 outputs/ 以靜態檔案方式公開，前端可直接播放。
+# 注意：絕不要掛 BASE_DIR——那會把 .env（含 FAL_KEY）與全部原始碼一起對外公開。
+app.mount("/files/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
 _ALLOWED_IMAGE = {"image/png", "image/jpeg", "image/webp"}
 
