@@ -7,7 +7,7 @@
 
 ## High
 
-- [ ] **上傳檔大小上限**:`main.py` 的 `await image.read()` 把整包讀進記憶體,無上限 → 大檔可 OOM / 塞爆硬碟。加 max size 與 413。
+- [x] **上傳檔大小上限**:兩層防護。(1) middleware 在 multipart 解析前用 `Content-Length` 早期擋掉過大上傳(回 413),避免 Starlette 先把整包落地系統暫存檔塞爆硬碟 — 一般瀏覽器上傳皆帶 Content-Length。(2) handler 再串流分塊(1 MiB/塊)寫入並累計大小,超過 `MAX_UPLOAD_MB`(預設 10)即中止、刪半成品檔、回 413,讀回記憶體有界。殘留:不帶 `Content-Length` 的 chunked 上傳仍會先落到系統暫存檔才被第 (2) 層擋下;若要完全堵住需在 ASGI 串流層累計位元組。
 - [ ] **驗證上傳內容**:目前只信任 client 的 `content-type` 與 `filename`,不驗實際位元組。改成嗅探 magic bytes,副檔名由偵測到的型別決定。
 - [ ] **mock 無 ffmpeg 時的假成功**:`mock.py` 在找不到 ffmpeg 時回一個 26 bytes 的壞 mp4,任務卻標 `done` → 使用者看到空白播放器、零錯誤。應改為 raise 明確錯誤(預設 provider 正是 mock)。
 - [ ] **fal 下載未驗內容**:`fal.py` 對下載回應只檢查 HTTP 狀態;200 的 HTML 錯誤頁 / 空 body 會被存成 `.mp4` 並標 done。加 content-type / magic-byte 檢查。
