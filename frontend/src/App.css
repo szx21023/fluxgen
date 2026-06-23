@@ -1,0 +1,154 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, "PingFang TC", "Microsoft JhengHei", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #0e1117;
+  color: #e6e6e6;
+}
+
+.app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px 20px;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 28px;
+}
+
+.sub {
+  margin: 0 0 24px;
+  color: #9aa4b2;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.tabs button {
+  flex: 1;
+  padding: 10px;
+  background: #1a2030;
+  color: #cbd5e1;
+  border: 1px solid #2a3344;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.tabs button.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.card {
+  background: #161b26;
+  border: 1px solid #2a3344;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.field {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.field span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: #9aa4b2;
+}
+
+textarea,
+input[type="file"] {
+  width: 100%;
+  box-sizing: border-box;
+  background: #0e1117;
+  color: #e6e6e6;
+  border: 1px solid #2a3344;
+  border-radius: 8px;
+  padding: 10px;
+  font: inherit;
+  resize: vertical;
+}
+
+form button[type="submit"] {
+  width: 100%;
+  padding: 12px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+form button[type="submit"]:disabled {
+  background: #334155;
+  cursor: not-allowed;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+
+.provider {
+  margin-left: auto;
+  font-size: 12px;
+  color: #6b7480;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #6b7480;
+}
+
+.dot.pending {
+  background: #eab308;
+}
+.dot.running {
+  background: #3b82f6;
+  animation: pulse 1s infinite;
+}
+.dot.done {
+  background: #22c55e;
+}
+.dot.failed {
+  background: #ef4444;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.result video {
+  width: 100%;
+  margin-top: 14px;
+  border-radius: 8px;
+  background: #000;
+}
+
+.error {
+  color: #fca5a5;
+  background: #2a1518;
+  border: 1px solid #5b2326;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
