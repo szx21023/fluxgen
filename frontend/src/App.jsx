@@ -45,6 +45,13 @@ export default function App() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  function switchMode(next) {
+    if (next === mode) return;
+    setMode(next);
+    // 切換分頁時清掉殘留的圖檔與預覽，避免舊預覽重現、object URL 留著不回收
+    clearFile();
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
@@ -79,13 +86,13 @@ export default function App() {
       <div className="tabs">
         <button
           className={mode === "text" ? "active" : ""}
-          onClick={() => setMode("text")}
+          onClick={() => switchMode("text")}
         >
           文字 → 影片
         </button>
         <button
           className={mode === "image" ? "active" : ""}
-          onClick={() => setMode("image")}
+          onClick={() => switchMode("image")}
         >
           圖片 → 影片
         </button>
