@@ -24,7 +24,7 @@ class MockProvider(VideoProvider):
 
     name = "mock"
 
-    async def _render(self, label: str) -> GenerationResult:
+    async def _render(self, label: str, duration: int) -> GenerationResult:
         # 模擬真實 API 需要等待的感覺
         await asyncio.sleep(2)
 
@@ -42,10 +42,10 @@ class MockProvider(VideoProvider):
         )
         cmd = [
             _FFMPEG, "-y",
-            "-f", "lavfi", "-i", "testsrc=size=1280x720:rate=24:duration=4",
+            "-f", "lavfi", "-i", f"testsrc=size=1280x720:rate=24:duration={duration}",
             "-vf", drawtext,
             "-pix_fmt", "yuv420p",
-            "-t", "4",
+            "-t", str(duration),
             str(out),
         ]
         proc = await asyncio.create_subprocess_exec(
@@ -59,8 +59,10 @@ class MockProvider(VideoProvider):
         out.unlink(missing_ok=True)
         return GenerationResult(video_bytes=data)
 
-    async def text_to_video(self, prompt: str) -> GenerationResult:
-        return await self._render(f"[MOCK] {prompt}")
+    async def text_to_video(self, prompt: str, duration: int) -> GenerationResult:
+        return await self._render(f"[MOCK] {prompt} ({duration}s)", duration)
 
-    async def image_to_video(self, image_path: str, prompt: str | None) -> GenerationResult:
-        return await self._render(f"[MOCK img] {prompt or 'image'}")
+    async def image_to_video(
+        self, image_path: str, prompt: str | None, duration: int
+    ) -> GenerationResult:
+        return await self._render(f"[MOCK img] {prompt or 'image'} ({duration}s)", duration)

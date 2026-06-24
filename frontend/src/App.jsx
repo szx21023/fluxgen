@@ -17,6 +17,7 @@ function formatBytes(bytes) {
 export default function App() {
   const [mode, setMode] = useState("text"); // "text" | "image"
   const [prompt, setPrompt] = useState("");
+  const [duration, setDuration] = useState(5);
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [job, setJob] = useState(null);
@@ -62,8 +63,8 @@ export default function App() {
       setBusy(true);
       const created =
         mode === "text"
-          ? await submitTextJob(prompt)
-          : await submitImageJob(file, prompt);
+          ? await submitTextJob(prompt, duration)
+          : await submitImageJob(file, prompt, duration);
       setJob(created);
       stopPoll.current = pollJob(created.id, setJob);
     } catch (err) {
@@ -144,6 +145,25 @@ export default function App() {
             onChange={(e) => setPrompt(e.target.value)}
           />
         </label>
+
+        <div className="field">
+          <span>影片時長</span>
+          <div className="duration">
+            {[5, 10].map((d) => (
+              <button
+                key={d}
+                type="button"
+                className={duration === d ? "active" : ""}
+                onClick={() => setDuration(d)}
+              >
+                {d} 秒
+              </button>
+            ))}
+          </div>
+          {duration === 10 && (
+            <span className="hint">10 秒約為 5 秒的 2 倍費用</span>
+          )}
+        </div>
 
         <button type="submit" disabled={!canSubmit}>
           {inProgress ? "生成中…" : "開始生成"}

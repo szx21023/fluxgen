@@ -25,11 +25,13 @@ class VideoProvider(ABC):
     name: str = "base"
 
     @abstractmethod
-    async def text_to_video(self, prompt: str) -> GenerationResult:
-        """文字 → 影片。"""
+    async def text_to_video(self, prompt: str, duration: int) -> GenerationResult:
+        """文字 → 影片。duration 為影片秒數。"""
         raise NotImplementedError
 
     @abstractmethod
-    async def image_to_video(self, image_path: str, prompt: str | None) -> GenerationResult:
-        """圖片(+可選文字) → 影片。"""
+    async def image_to_video(
+        self, image_path: str, prompt: str | None, duration: int
+    ) -> GenerationResult:
+        """圖片(+可選文字) → 影片。duration 為影片秒數。"""
         raise NotImplementedError

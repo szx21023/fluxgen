@@ -102,17 +102,23 @@ class FalProvider(VideoProvider):
             _raise_for_status(video, "下載影片")
             return GenerationResult(video_bytes=video.content)
 
-    async def text_to_video(self, prompt: str) -> GenerationResult:
+    async def text_to_video(self, prompt: str, duration: int) -> GenerationResult:
+        # Kling 的 duration 是字串列舉（"5" / "10"）
         return await self._submit_and_wait(
-            settings.fal_text_model, {"prompt": prompt}
+            settings.fal_text_model, {"prompt": prompt, "duration": str(duration)}
         )
 
-    async def image_to_video(self, image_path: str, prompt: str | None) -> GenerationResult:
+    async def image_to_video(
+        self, image_path: str, prompt: str | None, duration: int
+    ) -> GenerationResult:
         # fal.ai 接受 data URI 當作圖片輸入，免去另外上傳圖床
         path = Path(image_path)
         mime = mimetypes.guess_type(path.name)[0] or "image/png"
         b64 = base64.b64encode(path.read_bytes()).decode()
-        payload: dict = {"image_url": f"data:{mime};base64,{b64}"}
+        payload: dict = {
+            "image_url": f"data:{mime};base64,{b64}",
+            "duration": str(duration),
+        }
         if prompt:
             payload["prompt"] = prompt
         return await self._submit_and_wait(settings.fal_image_model, payload)

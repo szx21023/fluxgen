@@ -136,6 +136,35 @@ form button[type="submit"]:disabled {
   }
 }
 
+.duration {
+  display: flex;
+  gap: 8px;
+}
+
+.duration button {
+  flex: 1;
+  padding: 10px;
+  background: #1a2030;
+  color: #cbd5e1;
+  border: 1px solid #2a3344;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.duration button.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #eab308;
+}
+
 .preview {
   margin-top: 12px;
   border: 1px solid #2a3344;
