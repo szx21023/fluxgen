@@ -9,7 +9,7 @@
 
 - [x] **上傳檔大小上限**:兩層防護。(1) middleware 在 multipart 解析前用 `Content-Length` 早期擋掉過大上傳(回 413),避免 Starlette 先把整包落地系統暫存檔塞爆硬碟 — 一般瀏覽器上傳皆帶 Content-Length。(2) handler 再串流分塊(1 MiB/塊)寫入並累計大小,超過 `MAX_UPLOAD_MB`(預設 10)即中止、刪半成品檔、回 413,讀回記憶體有界。殘留:不帶 `Content-Length` 的 chunked 上傳仍會先落到系統暫存檔才被第 (2) 層擋下;若要完全堵住需在 ASGI 串流層累計位元組。
 - [ ] **驗證上傳內容**:目前只信任 client 的 `content-type` 與 `filename`,不驗實際位元組。改成嗅探 magic bytes,副檔名由偵測到的型別決定。
-- [ ] **mock 無 ffmpeg 時的假成功**:`mock.py` 在找不到 ffmpeg 時回一個 26 bytes 的壞 mp4,任務卻標 `done` → 使用者看到空白播放器、零錯誤。應改為 raise 明確錯誤(預設 provider 正是 mock)。
+- [x] **mock 無 ffmpeg 時的假成功**:`mock.py` 原本在找不到 ffmpeg 時回一個 32 bytes 的壞 mp4(`_MINIMAL_MP4`),任務卻標 `done` → 使用者看到空白播放器、零錯誤。已改為直接 raise `RuntimeError`,任務正確標 `failed` 並回明確錯誤訊息,並刪除 `_MINIMAL_MP4` 後備常數。已驗證:透過真實 HTTP 端點,有 ffmpeg → `done` 產出合法 h264 影片;無 ffmpeg(實際移出 `PATH`)→ `failed` 帶明確錯誤。
 - [ ] **fal 下載未驗內容**:`fal.py` 對下載回應只檢查 HTTP 狀態;200 的 HTML 錯誤頁 / 空 body 會被存成 `.mp4` 並標 done。加 content-type / magic-byte 檢查。
 - [ ] **錯誤可觀測性**:`jobs.py` 的 `except Exception` 把 `str(exc)` 原樣回前端(可能洩漏伺服器檔案絕對路徑),且伺服器端無 log/traceback。改為 server 端 `logger.exception(...)` + 回前端一則 sanitized 訊息。
 - [ ] **前端輪詢韌性**:`api.js` 一次網路抖動就把任務永久標「失敗」並停止輪詢;非 JSON 錯誤回應會讓 `res.json()` 丟錯蓋掉真因。加重試/退避,並 `res.json().catch(() => ({}))`。
@@ -33,6 +33,19 @@
 - [ ] 前端切換分頁時未清掉舊的 `file`/`prompt`;`submitImageJob` 應在 `file` 為空時擋下。
 - [ ] `jobs.py` 的 `created_at` / `updated_at` 用兩次 `_now()` → 呼叫一次共用,建立時兩個時間戳才一致。
 - [ ] 文件化:`CORS_ORIGINS=*` 絕不可與 credentials 並用。
+
+## 功能想法(新功能)
+
+- [ ] **影片生影片(video-to-video / restyle)**:輸入一段影片 + prompt,重繪風格、保留原片動作。架構已支援(pluggable provider),只需比照 image-to-video 加一條路徑。
+  - 候選模型(皆在 fal.ai,同一把 `FAL_KEY`):`decart/lucy-restyle`(專為 restyle,單一影片輸入)、`fal-ai/wan-vace-apps/video-edit`(可控、約 $0.20/支)。
+  - 關鍵新邏輯:影片太大不能走現有 base64 data URI,要**先上傳到 fal storage 拿 URL**(`fal_client.upload_file_async()` 或手刻 storage REST),再把 URL 餵模型。
+  - 改動:`config.py` 加 `fal_video_model` / `max_video_upload_mb`;`base.py`/`fal.py`/`mock.py` 加 `video_to_video()`;`schemas.py` 加 `JobKind.video_to_video` 與 `video_path`;`jobs.py`、`main.py`(新端點 `POST /api/jobs/video` + 中介層大小攔截涵蓋它);前端 `api.js`/`App.jsx` 加第三個 tab。
+  - 注意:restyle 較慢較貴,`_MAX_WAIT`(600s) 可能要拉長;換模型後實測 `video.url` 回傳格式。
+
+- [ ] **多檔上傳**:兩種意思,實作差很多。
+  - **A. 批次**:一次丟 N 個檔,各自生成各自的影片。不限模型,前端 `<input multiple>` + 後端 `list[UploadFile]`,每檔開一個 job;前端要能同時輪詢/顯示多個 job。
+  - **B. 多參考輸入合成同一支**(使用者關注的方向):多張參考圖/首尾幀/素材合成一支影片。**受模型限制** — 現用 Kling v2 只吃單張 `image_url`;需換成支援多輸入的模型 **Wan VACE**(`fal-ai/wan-vace-apps/video-edit`,fal.ai 上,有 `image_urls` 複數欄位)。payload 多帶 `image_urls` 陣列;多圖一樣走 fal storage 上傳拿 URL(與影片上傳同機制)。
+  - A 與 B 可共用同一套 fal storage 上傳邏輯,差別只在「開幾個 job」與「payload 單張 vs 多張」。
 
 ## 審查中確認安全(無須處理)
 

@@ -18,7 +18,8 @@ class MockProvider(VideoProvider):
     """假的影片生成器：不呼叫任何外部 API，用 ffmpeg 產生一段
     帶有 prompt 文字的測試影片，純粹把整條流程跑通。
 
-    沒有 ffmpeg 時退化成回傳一個極小的合法 mp4 placeholder。
+    需要系統有 ffmpeg；缺少時直接 raise，讓任務正確標為 failed，
+    而非回一個壞掉的 placeholder mp4 卻被當成功。
     """
 
     name = "mock"
@@ -28,7 +29,10 @@ class MockProvider(VideoProvider):
         await asyncio.sleep(2)
 
         if not _FFMPEG:
-            return GenerationResult(video_bytes=_MINIMAL_MP4)
+            raise RuntimeError(
+                "mock provider 需要 ffmpeg，但系統找不到 ffmpeg 執行檔。"
+                "請安裝 ffmpeg，或改用其他 video_provider。"
+            )
 
         out = Path(tempfile.mktemp(suffix=".mp4"))
         drawtext = (
@@ -60,11 +64,3 @@ class MockProvider(VideoProvider):
 
     async def image_to_video(self, image_path: str, prompt: str | None) -> GenerationResult:
         return await self._render(f"[MOCK img] {prompt or 'image'}")
-
-
-# 沒有 ffmpeg 時的後備：一個內容為空但結構合法的最小 mp4 容器
-_MINIMAL_MP4 = bytes.fromhex(
-    "0000001c66747970"  # ftyp box
-    "69736f6d0000020069736f6d69736f32"
-    "0000000a6d646174"  # 空的 mdat box
-)
