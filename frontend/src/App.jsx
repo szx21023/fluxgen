@@ -8,17 +8,49 @@ const STATUS_LABEL = {
   failed: "失敗",
 };
 
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function App() {
   const [mode, setMode] = useState("text"); // "text" | "image"
   const [prompt, setPrompt] = useState("");
   const [file, setFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const [job, setJob] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const stopPoll = useRef(null);
+  const fileInputRef = useRef(null);
 
   // 卸載時停止輪詢
   useEffect(() => () => stopPoll.current?.(), []);
+
+  // 依選取的檔案產生本機預覽 URL，換檔/卸載時回收避免記憶體洩漏
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  function clearFile() {
+    setFile(null);
+    // 清掉 input 的值，否則再次選同一個檔不會觸發 onChange
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function switchMode(next) {
+    if (next === mode) return;
+    setMode(next);
+    // 切換分頁時清掉殘留的圖檔與預覽，避免舊預覽重現、object URL 留著不回收
+    clearFile();
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -54,13 +86,13 @@ export default function App() {
       <div className="tabs">
         <button
           className={mode === "text" ? "active" : ""}
-          onClick={() => setMode("text")}
+          onClick={() => switchMode("text")}
         >
           文字 → 影片
         </button>
         <button
           className={mode === "image" ? "active" : ""}
-          onClick={() => setMode("image")}
+          onClick={() => switchMode("image")}
         >
           圖片 → 影片
         </button>
@@ -71,10 +103,29 @@ export default function App() {
           <label className="field">
             <span>圖片</span>
             <input
+              ref={fileInputRef}
               type="file"
               accept="image/png,image/jpeg,image/webp"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
+            {file && previewUrl && (
+              <div className="preview">
+                <img src={previewUrl} alt="預覽" />
+                <div className="preview-meta">
+                  <span className="preview-name" title={file.name}>
+                    {file.name}
+                  </span>
+                  <span className="preview-size">{formatBytes(file.size)}</span>
+                  <button
+                    type="button"
+                    className="preview-remove"
+                    onClick={clearFile}
+                  >
+                    移除
+                  </button>
+                </div>
+              </div>
+            )}
           </label>
         )}
 
