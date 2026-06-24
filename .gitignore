@@ -17,3 +17,6 @@ backend/uploads/
 # --- misc ---
 .DS_Store
 *.log
+
+# --- test / tooling artifacts ---
+.playwright-mcp/
