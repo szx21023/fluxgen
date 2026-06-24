@@ -1,19 +1,20 @@
 // 與後端溝通的薄封裝層
 
-export async function submitTextJob(prompt) {
+export async function submitTextJob(prompt, duration) {
   const res = await fetch("/api/jobs/text", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, duration }),
   });
   if (!res.ok) throw new Error((await res.json()).detail || "提交失敗");
   return res.json();
 }
 
-export async function submitImageJob(file, prompt) {
+export async function submitImageJob(file, prompt, duration) {
   const form = new FormData();
   form.append("image", file);
   if (prompt) form.append("prompt", prompt);
+  form.append("duration", duration);
   const res = await fetch("/api/jobs/image", { method: "POST", body: form });
   if (!res.ok) throw new Error((await res.json()).detail || "提交失敗");
   return res.json();

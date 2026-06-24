@@ -36,6 +36,12 @@
 
 ## 功能想法(新功能)
 
+- [x] **可選影片時長**:前端加 5s/10s 選擇器,duration 從請求一路帶到 provider(text 走 JSON、image 走 form),fal payload 帶 `str(duration)`,mock ffmpeg 反映時長。
+  - 模型端:Kling v1.6 / v2.5-turbo 皆只收 `"5"` / `"10"`(已查證),預設 `"5"`。`ALLOWED_DURATIONS = (5, 10)` 為單一來源,換模型只改這裡。
+  - 驗證:後端 mock e2e(5s→5.0s、10s→10.0s)、HTTP 驗證(合法 200 / 非法 422)、前端 Playwright(選擇器 + 10s 費用提示)。
+  - 注意:image 端點 form 欄位用 `int = Form` + 手動檢查(不能用 `Literal[int]`,multipart 字串 `"5"` 對不上 int 的 Literal,會誤回 422)。
+  - 殘留:`ALLOWED_DURATIONS` 仍寫死於 `schemas.py`;若預期常換模型,可改成從 `config.py` / `.env` 讀。
+
 - [ ] **影片生影片(video-to-video / restyle)**:輸入一段影片 + prompt,重繪風格、保留原片動作。架構已支援(pluggable provider),只需比照 image-to-video 加一條路徑。
   - 候選模型(皆在 fal.ai,同一把 `FAL_KEY`):`decart/lucy-restyle`(專為 restyle,單一影片輸入)、`fal-ai/wan-vace-apps/video-edit`(可控、約 $0.20/支)。
   - 關鍵新邏輯:影片太大不能走現有 base64 data URI,要**先上傳到 fal storage 拿 URL**(`fal_client.upload_file_async()` 或手刻 storage REST),再把 URL 餵模型。

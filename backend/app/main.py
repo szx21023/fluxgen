@@ -9,7 +9,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app import jobs
 from app.config import OUTPUT_DIR, UPLOAD_DIR, settings
-from app.schemas import CreateTextJobRequest, JobKind, JobResponse
+from app.schemas import (
+    ALLOWED_DURATIONS,
+    DEFAULT_DURATION,
+    CreateTextJobRequest,
+    JobKind,
+    JobResponse,
+)
 
 app = FastAPI(title="AI 影片生成 API", version="0.1.0")
 
@@ -68,7 +74,12 @@ def create_text_job(req: CreateTextJobRequest, bg: BackgroundTasks) -> JobRespon
     """文生影片：提交文字，立刻回 job_id，影片在背景生成。"""
     if not req.prompt.strip():
         raise HTTPException(400, "prompt 不可為空")
-    job = jobs.create_job(JobKind.text_to_video, prompt=req.prompt.strip(), image_path=None)
+    job = jobs.create_job(
+        JobKind.text_to_video,
+        prompt=req.prompt.strip(),
+        image_path=None,
+        duration=req.duration,
+    )
     bg.add_task(jobs.run_job, job.id)
     return JobResponse.from_job(job)
 
@@ -78,10 +89,16 @@ async def create_image_job(
     bg: BackgroundTasks,
     image: UploadFile = File(...),
     prompt: str | None = Form(None),
+    # multipart 欄位是字串，int 會把 "5" 轉成 5；允許值由下方手動檢查（不能用
+    # Literal[int]，那對字串表單值會驗不過）。
+    duration: int = Form(DEFAULT_DURATION),
 ) -> JobResponse:
     """圖生影片：上傳圖片(+可選文字)，立刻回 job_id。"""
     if image.content_type not in _ALLOWED_IMAGE:
         raise HTTPException(400, f"不支援的圖片格式: {image.content_type}")
+    if duration not in ALLOWED_DURATIONS:
+        allowed = " / ".join(str(d) for d in ALLOWED_DURATIONS)
+        raise HTTPException(422, f"duration 只接受 {allowed} 秒")
 
     max_bytes = settings.max_upload_mb * 1024 * 1024
     ext = Path(image.filename or "").suffix or ".png"
@@ -106,6 +123,7 @@ async def create_image_job(
         JobKind.image_to_video,
         prompt=(prompt or "").strip() or None,
         image_path=str(dest),
+        duration=duration,
     )
     bg.add_task(jobs.run_job, job.id)
     return JobResponse.from_job(job)
