@@ -27,7 +27,6 @@
 ## Low / nice-to-have
 
 - [x] `tempfile.mktemp` 已棄用(TOCTOU)→ 已改 `mkstemp` + `finally` 清理(順帶修掉 ffmpeg 失敗時 temp 檔殘留)。導入 pre-commit 時由 bandit B306 抓出。
-- [ ] `_MINIMAL_MP4` 宣告的 box 長度與實際內容不符,註解稱「結構合法」不精確。
 - [ ] `get_provider()` 每次呼叫都重建 provider → 可用 `functools.lru_cache` memoize。
 - [ ] 上傳檔從不清理 → 加任務完成後清除或定期清掃。
 - [ ] 前端切換分頁時未清掉舊的 `file`/`prompt`;`submitImageJob` 應在 `file` 為空時擋下。
