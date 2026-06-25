@@ -22,7 +22,7 @@
 - [ ] **fal 下載 URL allowlist**:`video_url` 來自 fal 回應,下載前未限制 https / 網域(輕度 SSRF)。
 - [ ] **drawtext metacharacters**:`mock.py` 的跳脫只處理 `:'\`,未處理 `% , [ ] ; =`,且先跳脫後截斷可能切斷跳脫序列導致 ffmpeg 失敗。改為先截斷再跳脫,或用 `textfile=`。
 - [x] **`image_to_video` 讀檔無防呆**:`fal.py` 的 `path.read_bytes()` 包 `try/except FileNotFoundError` → raise `ProviderError("找不到上傳的圖片檔,可能已被清除,請重新上傳。")`,給明確訊息且不外洩絕對路徑;其他讀檔錯誤(PermissionError 等)仍上拋走 jobs.py 的通用分支。已驗證:不存在路徑 → 拋 ProviderError 且訊息不含路徑。
-- [ ] **`_fal_detail` 的 `except Exception` 過廣**:縮成 `except (ValueError, json.JSONDecodeError)`;截斷 300 字時標註 `(truncated)`。
+- [x] **`_fal_detail` 的 `except Exception` 過廣**:縮成 `except (ValueError, json.JSONDecodeError)`(壞編碼的 `UnicodeDecodeError` 亦為 `ValueError` 子類,涵蓋無虞);新增 `_clip()`,截斷至 `_DETAIL_MAX`(300)字時標 `…(truncated)`,避免片段被誤認為完整原文(原 `[:300]` 兩處皆改用)。已驗證(單元):JSON 帶 detail 原樣回、非 JSON 超長 → 截斷+標註、空 body → `HTTP {status}`、JSON 無 detail → `HTTP {status}: {clip(body)}`。
 
 ## Low / nice-to-have
 
