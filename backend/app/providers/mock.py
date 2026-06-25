@@ -4,7 +4,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from app.providers.base import GenerationResult, VideoProvider
+from app.providers.base import GenerationResult, ProviderError, VideoProvider
 
 _FFMPEG = shutil.which("ffmpeg")
 
@@ -30,7 +30,7 @@ class MockProvider(VideoProvider):
         await asyncio.sleep(2)
 
         if not _FFMPEG:
-            raise RuntimeError(
+            raise ProviderError(
                 "mock provider 需要 ffmpeg，但系統找不到 ffmpeg 執行檔。請安裝 ffmpeg，或改用其他 video_provider。"
             )
 

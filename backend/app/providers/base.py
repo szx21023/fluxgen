@@ -2,6 +2,15 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 
+class ProviderError(Exception):
+    """Provider 生成失敗，且訊息已經過整理、可安全顯示給前端使用者。
+
+    用這個區分「可直接給使用者看的原因」（餘額用盡、缺 ffmpeg、任務超時…）
+    與「非預期的內部例外」（會夾帶伺服器路徑/堆疊）。後者一律在後端記 log，
+    只回前端一則通用訊息，避免洩漏內部細節。詳見 jobs.run_job。
+    """
+
+
 @dataclass
 class GenerationResult:
     """Provider 產出影片後回傳的結果。

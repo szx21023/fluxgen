@@ -6,7 +6,7 @@ from pathlib import Path
 import httpx
 
 from app.config import settings
-from app.providers.base import GenerationResult, VideoProvider
+from app.providers.base import GenerationResult, ProviderError, VideoProvider
 
 # fal.ai 佇列式 API：提交後拿到 status_url / response_url，輪詢到完成
 _QUEUE_BASE = "https://queue.fal.run"
@@ -33,7 +33,7 @@ def _fal_detail(resp: httpx.Response) -> str:
 def _raise_for_status(resp: httpx.Response, action: str) -> None:
     """像 raise_for_status，但把 fal 的 detail 一起帶出來方便除錯。"""
     if resp.is_error:
-        raise RuntimeError(f"fal.ai {action} 失敗（{resp.status_code}）：{_fal_detail(resp)}")
+        raise ProviderError(f"fal.ai {action} 失敗（{resp.status_code}）：{_fal_detail(resp)}")
 
 
 class FalProvider(VideoProvider):
@@ -59,7 +59,7 @@ class FalProvider(VideoProvider):
             status_url = queued.get("status_url")
             response_url = queued.get("response_url")
             if not status_url or not response_url:
-                raise RuntimeError(f"fal.ai 提交回應缺少 status_url/response_url：{str(queued)[:300]}")
+                raise ProviderError(f"fal.ai 提交回應缺少 status_url/response_url：{str(queued)[:300]}")
 
             # 2) 輪詢直到完成
             waited = 0.0
@@ -74,9 +74,9 @@ class FalProvider(VideoProvider):
                 if status in ("FAILED", "CANCELLED"):
                     # 失敗時 response_url 通常帶有 fal 的詳細原因
                     detail = _fal_detail(await client.get(response_url, headers=self._headers))
-                    raise RuntimeError(f"fal.ai 任務 {status}：{detail}")
+                    raise ProviderError(f"fal.ai 任務 {status}：{detail}")
             else:
-                raise TimeoutError(f"fal.ai 任務超時（超過 {_MAX_WAIT} 秒）")
+                raise ProviderError(f"fal.ai 任務超時（超過 {_MAX_WAIT} 秒）")
 
             # 3) 取結果，下載影片
             done = await client.get(response_url, headers=self._headers)
@@ -87,7 +87,7 @@ class FalProvider(VideoProvider):
             video_url = (result.get("video") or {}).get("url") if isinstance(result, dict) else None
             if not video_url:
                 detail = result.get("detail") if isinstance(result, dict) else None
-                raise RuntimeError(
+                raise ProviderError(
                     f"fal.ai 回應沒有影片 URL（可能是 model 路徑無效或回傳格式改變）：{detail or str(result)[:300]}"
                 )
             video = await client.get(video_url)
