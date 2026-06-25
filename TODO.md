@@ -8,7 +8,7 @@
 ## High
 
 - [x] **上傳檔大小上限**:兩層防護。(1) middleware 在 multipart 解析前用 `Content-Length` 早期擋掉過大上傳(回 413),避免 Starlette 先把整包落地系統暫存檔塞爆硬碟 — 一般瀏覽器上傳皆帶 Content-Length。(2) handler 再串流分塊(1 MiB/塊)寫入並累計大小,超過 `MAX_UPLOAD_MB`(預設 10)即中止、刪半成品檔、回 413,讀回記憶體有界。殘留:不帶 `Content-Length` 的 chunked 上傳仍會先落到系統暫存檔才被第 (2) 層擋下;若要完全堵住需在 ASGI 串流層累計位元組。
-- [ ] **驗證上傳內容**:目前只信任 client 的 `content-type` 與 `filename`,不驗實際位元組。改成嗅探 magic bytes,副檔名由偵測到的型別決定。
+- [x] **驗證上傳內容**:新增 `main._sniff_image_type()` 以 magic bytes 驗實際內容(PNG/JPEG/WebP,WebP 檢查 `RIFF…WEBP`),`create_image_job` 先讀第一塊 sniff,通不過回 400;副檔名一律由偵測型別決定,不再採信 client 的 `filename`(移除 `Path(image.filename).suffix`)。連帶把 fal data URI 的 mime 改用明確對照表 `_EXT_TO_MIME`(取代 `mimetypes.guess_type`),不依賴 OS 的 `/etc/mime.types`,避免精簡環境把 `.webp` 誤判成 png。已驗證:真實 HTTP — 合法 PNG → 存成 `.png` 且任務 done、content-type 偽裝+垃圾內容 → 400、filename 騙成 `.txt` 的真 PNG → 仍依偵測存 `.png`;單元 — 各格式/短檔/GIF 偵測正確、`.webp` 實檔 data URI mime = image/webp。
 - [x] **mock 無 ffmpeg 時的假成功**:`mock.py` 原本在找不到 ffmpeg 時回一個 32 bytes 的壞 mp4(`_MINIMAL_MP4`),任務卻標 `done` → 使用者看到空白播放器、零錯誤。已改為直接 raise `RuntimeError`,任務正確標 `failed` 並回明確錯誤訊息,並刪除 `_MINIMAL_MP4` 後備常數。已驗證:透過真實 HTTP 端點,有 ffmpeg → `done` 產出合法 h264 影片;無 ffmpeg(實際移出 `PATH`)→ `failed` 帶明確錯誤。
 - [ ] **fal 下載未驗內容**:`fal.py` 對下載回應只檢查 HTTP 狀態;200 的 HTML 錯誤頁 / 空 body 會被存成 `.mp4` 並標 done。加 content-type / magic-byte 檢查。
 - [x] **錯誤可觀測性**:新增 `ProviderError`(base.py)區分「可安全顯示給使用者的失敗原因」與「非預期內部例外」。`jobs.run_job` 改為:`ProviderError` → 記 `logger.warning` + 原樣回前端(餘額/缺 ffmpeg/超時…);其他例外 → `logger.exception`(完整 traceback 只進後端 log)+ 前端只收到通用訊息「影片生成失敗,請稍後再試。」fal.py/mock.py 把策劃過的錯誤改丟 `ProviderError`。已驗證:真實 HTTP 端點下,`PermissionError`(夾絕對路徑)→ 前端只收通用訊息、路徑不外洩,後端 log 有完整 traceback;缺 ffmpeg → `ProviderError` 安全訊息 + log 僅 WARNING 無 traceback。
@@ -21,7 +21,7 @@
 - [ ] **記憶體 job store 重啟即失**:`_jobs` 重啟清空 → poller 拿到 404 被當失敗。換 Redis/DB,或前端把 404 當「狀態遺失」而非失敗。
 - [ ] **fal 下載 URL allowlist**:`video_url` 來自 fal 回應,下載前未限制 https / 網域(輕度 SSRF)。
 - [ ] **drawtext metacharacters**:`mock.py` 的跳脫只處理 `:'\`,未處理 `% , [ ] ; =`,且先跳脫後截斷可能切斷跳脫序列導致 ffmpeg 失敗。改為先截斷再跳脫,或用 `textfile=`。
-- [ ] **`image_to_video` 讀檔無防呆**:`fal.py` 直接 `path.read_bytes()`,檔案若已被刪會丟 `FileNotFoundError` 並把路徑洩漏給前端。
+- [x] **`image_to_video` 讀檔無防呆**:`fal.py` 的 `path.read_bytes()` 包 `try/except FileNotFoundError` → raise `ProviderError("找不到上傳的圖片檔,可能已被清除,請重新上傳。")`,給明確訊息且不外洩絕對路徑;其他讀檔錯誤(PermissionError 等)仍上拋走 jobs.py 的通用分支。已驗證:不存在路徑 → 拋 ProviderError 且訊息不含路徑。
 - [ ] **`_fal_detail` 的 `except Exception` 過廣**:縮成 `except (ValueError, json.JSONDecodeError)`;截斷 300 字時標註 `(truncated)`。
 
 ## Low / nice-to-have

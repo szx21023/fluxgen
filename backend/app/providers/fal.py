@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import mimetypes
 from pathlib import Path
 
 import httpx
@@ -12,6 +11,11 @@ from app.providers.base import GenerationResult, ProviderError, VideoProvider
 _QUEUE_BASE = "https://queue.fal.run"
 _POLL_INTERVAL = 3.0
 _MAX_WAIT = 600  # 秒；文生影片有時要好幾分鐘
+
+# 由副檔名推 data URI 的 mime。副檔名在上傳時已由 magic bytes 偵測決定（見
+# main._sniff_image_type），故這裡是權威來源；用明確對照表而非 mimetypes，
+# 避免依賴 OS 的 /etc/mime.types（精簡環境可能認不得 .webp 而誤判成 png）。
+_EXT_TO_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
 
 
 def _fal_detail(resp: httpx.Response) -> str:
@@ -101,8 +105,13 @@ class FalProvider(VideoProvider):
     async def image_to_video(self, image_path: str, prompt: str | None, duration: int) -> GenerationResult:
         # fal.ai 接受 data URI 當作圖片輸入，免去另外上傳圖床
         path = Path(image_path)
-        mime = mimetypes.guess_type(path.name)[0] or "image/png"
-        b64 = base64.b64encode(path.read_bytes()).decode()
+        mime = _EXT_TO_MIME.get(path.suffix.lower(), "image/png")
+        try:
+            raw = path.read_bytes()
+        except FileNotFoundError as exc:
+            # 上傳檔可能已被清理／遺失。給明確訊息，且不外洩伺服器絕對路徑。
+            raise ProviderError("找不到上傳的圖片檔，可能已被清除，請重新上傳。") from exc
+        b64 = base64.b64encode(raw).decode()
         payload: dict = {
             "image_url": f"data:{mime};base64,{b64}",
             "duration": str(duration),
