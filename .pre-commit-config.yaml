@@ -1,0 +1,82 @@
+# pre-commit 設定 — 後端(ruff/bandit)+ 前端(prettier/eslint)+ repo-wide 安全/衛生
+# 啟用方式(每位開發者各做一次):
+#   backend/.venv/bin/pip install pre-commit detect-secrets   # 取得 pre-commit
+#   (cd frontend && npm install)                              # 前端 hook 需要 node_modules
+#   backend/.venv/bin/pre-commit install                      # 掛進 .git/hooks
+# 手動全跑一次:
+#   backend/.venv/bin/pre-commit run --all-files
+#
+# 範圍原則:
+#   - 語言無關的衛生/密鑰掃描 → repo-wide(含 frontend)
+#   - ruff / bandit          → 僅 backend/
+#   - prettier / eslint      → 僅 frontend/(呼叫該專案本機安裝的工具)
+
+default_language_version:
+  python: python3
+
+# 排除 lock/生成檔，避免衛生 hook 去動它們
+exclude: |
+  (?x)^(
+    frontend/package-lock\.json|
+    \.secrets\.baseline
+  )$
+
+repos:
+  # 通用檔案衛生(repo-wide)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+
+  # 密鑰外洩偵測(repo-wide)
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+
+  # ---- 後端 ----
+  # Ruff:lint(含 import 排序、自動修正)+ format
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.18
+    hooks:
+      - id: ruff
+        name: ruff (lint)
+        args: [--fix]
+        files: ^backend/
+      - id: ruff-format
+        name: ruff (format)
+        files: ^backend/
+
+  # bandit:Python 程式碼安全掃描(讀 backend/pyproject.toml 的 [tool.bandit])
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.4
+    hooks:
+      - id: bandit
+        args: [-c, backend/pyproject.toml]
+        additional_dependencies: ["bandit[toml]"]
+        files: ^backend/
+
+  # ---- 前端(呼叫 frontend/node_modules 內的本機工具)----
+  - repo: local
+    hooks:
+      - id: frontend-prettier
+        name: prettier (frontend)
+        entry: bash -c 'cd frontend && npm run --silent format'
+        language: system
+        files: ^frontend/.*\.(jsx?|css|html|json|md)$
+        pass_filenames: false
+        require_serial: true
+      - id: frontend-eslint
+        name: eslint (frontend)
+        entry: bash -c 'cd frontend && npm run --silent lint:fix'
+        language: system
+        files: ^frontend/.*\.jsx?$
+        pass_filenames: false
+        require_serial: true
