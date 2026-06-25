@@ -11,6 +11,9 @@ VideoDuration = Literal[5, 10]
 ALLOWED_DURATIONS = get_args(VideoDuration)
 DEFAULT_DURATION = 5
 
+# 生圖 prompt 貼合度（CFG）：越高越照描述/指令走。FLUX 預設 3.5。文生圖 / 圖生圖共用。
+DEFAULT_GUIDANCE = 3.5
+
 
 class JobStatus(str, Enum):
     pending = "pending"
@@ -33,6 +36,8 @@ class Job(BaseModel):
     prompt: str | None = None
     image_path: str | None = None
     duration: VideoDuration = DEFAULT_DURATION
+    # 生圖（text_to_image / image_to_image）使用；其他 kind 為 None
+    guidance_scale: float | None = None
     # 完成後可供前端下載/播放的相對 URL
     video_url: str | None = None
     error: str | None = None
@@ -47,9 +52,10 @@ class CreateTextJobRequest(BaseModel):
 
 
 class CreateTextImageJobRequest(BaseModel):
-    """文字生圖：只需 prompt，生圖無 duration 概念。"""
+    """文字生圖：prompt + 可選的 prompt 貼合度（生圖無 duration 概念）。"""
 
     prompt: str
+    guidance_scale: float = DEFAULT_GUIDANCE
 
 
 class JobResponse(BaseModel):

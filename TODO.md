@@ -41,11 +41,13 @@
   - 注意:image 端點 form 欄位用 `int = Form` + 手動檢查(不能用 `Literal[int]`,multipart 字串 `"5"` 對不上 int 的 Literal,會誤回 422)。
   - 殘留:`ALLOWED_DURATIONS` 仍寫死於 `schemas.py`;若預期常換模型,可改成從 `config.py` / `.env` 讀。
 
-- [x] **文字生圖 / 圖生圖**:沿用既有 job/輪詢架構,走 fal.ai FLUX(text-to-image=`fal-ai/flux/dev`、image-to-image=`fal-ai/flux/dev/image-to-image`,回應 `{"images":[{"url","content_type"}]}`)。
+- [x] **文字生圖 / 圖生圖**:沿用既有 job/輪詢架構,走 fal.ai(文生圖 `fal-ai/flux/dev`、圖生圖 `fal-ai/flux-pro/kontext` 指令式編輯,回應 `{"images":[{"url","content_type"}]}`)。
   - 後端:`GenerationResult.media_bytes`、`VideoProvider`→`MediaProvider`(加 `text_to_image`/`image_to_image`);`fal._submit_and_wait` 接 extract callback(影片/圖片共用佇列流程);`mock` 用 ffmpeg 出單張 PNG;新增 `POST /api/jobs/text-to-image`、`/api/jobs/image-to-image`(prompt 必填);抽出 `_save_validated_upload` 共用上傳驗證,中介層大小攔截涵蓋之。
-  - 前端:4 tabs;duration 僅影片模式顯示;結果依 `job.kind` 渲染 `<img>`/`<video>`。
-  - MVP:image-to-image 的 `strength` 寫死 0.95(FLUX 預設)。模型路徑由 `.env` 覆寫。
-  - 驗證:單元(`_extract_image` 各情境、mock 生圖出合法 PNG)、e2e(mock 真實 HTTP:text→image / image→image 跑到 done 且產物為合法 png、缺/空 prompt → 422/400)。
+  - 圖生圖用 **FLUX Kontext**(指令式編輯、保留人物;prompt 為「編輯指令」)。不吃 `strength`;改以 `guidance_scale`(CFG,預設 3.5)控制貼合度。模型路徑由 `.env` 覆寫。
+  - 安全過濾:FLUX 安全檢查器命中會回**全黑圖**並標 `has_nsfw_concepts`。已放寬(Kontext `safety_tolerance="5"`、FLUX dev `enable_safety_checker=false`)減少人物照誤擋;`_extract_image` 偵測 `has_nsfw_concepts` → 標 failed 回明確訊息,不再默默存黑圖當完成。
+  - 前端:4 tabs;duration 僅影片模式;生圖模式有 `guidance` 滑桿;結果依 `job.kind` 渲染 `<img>`/`<video>`。
+  - 驗證:單元(`_extract_image` 各情境含安全命中、mock 生圖出合法 PNG)、e2e(mock 真實 HTTP:text→image / image→image 跑到 done、缺/空 prompt → 422/400)、真實 fal Kontext 圖生圖實測成功出圖。
+  - 殘留:image-to-image 存檔副檔名取自 fal 回報的 content_type,但安全 fallback 黑圖實際為 PNG 卻標 jpeg(已由偵測擋下,非問題);Kontext 對「大幅改姿勢」先天較弱,要可靠改姿勢需 ControlNet+目標姿勢輸入(另列)。
 
 - [ ] **影片生影片(video-to-video / restyle)**:輸入一段影片 + prompt,重繪風格、保留原片動作。架構已支援(pluggable provider),只需比照 image-to-video 加一條路徑。
   - 候選模型(皆在 fal.ai,同一把 `FAL_KEY`):`decart/lucy-restyle`(專為 restyle,單一影片輸入)、`fal-ai/wan-vace-apps/video-edit`(可控、約 $0.20/支)。

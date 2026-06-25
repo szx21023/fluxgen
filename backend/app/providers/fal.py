@@ -66,6 +66,10 @@ _IMAGE_CTYPE_TO_EXT = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "w
 
 
 def _extract_image(result: dict) -> tuple[str, str, str]:
+    # 安全檢查器命中時 fal 會回一張全黑圖並標記 has_nsfw_concepts；別把黑圖當成功，
+    # 直接報明確錯誤（否則前端只會看到「完成」+ 一張全黑圖）。
+    if isinstance(result, dict) and any(result.get("has_nsfw_concepts") or []):
+        raise ProviderError("圖片被安全機制判定為不當內容而擋下（可能誤判）；請換一張圖或調整描述後再試。")
     images = result.get("images") if isinstance(result, dict) else None
     first = images[0] if isinstance(images, list) and images else None
     url = first.get("url") if isinstance(first, dict) else None
@@ -161,10 +165,18 @@ class FalProvider(MediaProvider):
             payload["prompt"] = prompt
         return await self._submit_and_wait(settings.fal_image_model, payload, _extract_video)
 
-    async def text_to_image(self, prompt: str) -> GenerationResult:
-        return await self._submit_and_wait(settings.fal_text_image_model, {"prompt": prompt}, _extract_image)
+    async def text_to_image(self, prompt: str, guidance_scale: float) -> GenerationResult:
+        # 關閉安全檢查器：自用工具，避免人物等正常內容被誤判塗黑（FLUX dev 支援此旗標）。
+        payload = {"prompt": prompt, "guidance_scale": guidance_scale, "enable_safety_checker": False}
+        return await self._submit_and_wait(settings.fal_text_image_model, payload, _extract_image)
 
-    async def image_to_image(self, image_path: str, prompt: str) -> GenerationResult:
-        # MVP：strength 寫死 0.95（FLUX 預設）。data URI 與 image_to_video 同機制。
-        payload = {"image_url": self._image_data_uri(image_path), "prompt": prompt, "strength": 0.95}
+    async def image_to_image(self, image_path: str, prompt: str, guidance_scale: float) -> GenerationResult:
+        # FLUX Kontext：指令式編輯（prompt 為編輯指令、保留人物），不吃 strength。
+        # guidance_scale 越高越照指令；safety_tolerance 放寬到 5（1~6，越高越寬鬆）減少誤擋。
+        payload = {
+            "image_url": self._image_data_uri(image_path),
+            "prompt": prompt,
+            "guidance_scale": guidance_scale,
+            "safety_tolerance": "5",
+        }
         return await self._submit_and_wait(settings.fal_image_image_model, payload, _extract_image)

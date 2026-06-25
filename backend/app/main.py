@@ -12,6 +12,7 @@ from app.config import OUTPUT_DIR, UPLOAD_DIR, settings
 from app.schemas import (
     ALLOWED_DURATIONS,
     DEFAULT_DURATION,
+    DEFAULT_GUIDANCE,
     CreateTextImageJobRequest,
     CreateTextJobRequest,
     JobKind,
@@ -160,16 +161,23 @@ async def create_image_job(
     return JobResponse.from_job(job)
 
 
+def _validate_guidance(guidance_scale: float) -> None:
+    if not 1 <= guidance_scale <= 20:
+        raise HTTPException(422, "guidance_scale 需介於 1 到 20 之間")
+
+
 @app.post("/api/jobs/text-to-image", response_model=JobResponse)
 def create_text_image_job(req: CreateTextImageJobRequest, bg: BackgroundTasks) -> JobResponse:
     """文生圖：提交文字，立刻回 job_id，圖片在背景生成。"""
     if not req.prompt.strip():
         raise HTTPException(400, "prompt 不可為空")
+    _validate_guidance(req.guidance_scale)
     job = jobs.create_job(
         JobKind.text_to_image,
         prompt=req.prompt.strip(),
         image_path=None,
         duration=DEFAULT_DURATION,
+        guidance_scale=req.guidance_scale,
     )
     bg.add_task(jobs.run_job, job.id)
     return JobResponse.from_job(job)
@@ -180,16 +188,20 @@ async def create_image_image_job(
     bg: BackgroundTasks,
     image: UploadFile = File(...),
     prompt: str = Form(...),
+    # prompt 貼合度（CFG）：越高越照編輯指令。範圍 [1, 20]。
+    guidance_scale: float = Form(DEFAULT_GUIDANCE),
 ) -> JobResponse:
-    """圖生圖：上傳圖片 + 文字（prompt 必填），立刻回 job_id。"""
+    """圖生圖（FLUX Kontext 指令式編輯）：上傳圖片 + 編輯指令（必填），立刻回 job_id。"""
     if not prompt.strip():
         raise HTTPException(400, "prompt 不可為空")
+    _validate_guidance(guidance_scale)
     dest = await _save_validated_upload(image)
     job = jobs.create_job(
         JobKind.image_to_image,
         prompt=prompt.strip(),
         image_path=str(dest),
         duration=DEFAULT_DURATION,
+        guidance_scale=guidance_scale,
     )
     bg.add_task(jobs.run_job, job.id)
     return JobResponse.from_job(job)

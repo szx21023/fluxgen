@@ -45,11 +45,11 @@ class MediaProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def text_to_image(self, prompt: str) -> GenerationResult:
-        """文字 → 圖片。"""
+    async def text_to_image(self, prompt: str, guidance_scale: float) -> GenerationResult:
+        """文字 → 圖片。guidance_scale 越高越照 prompt。"""
         raise NotImplementedError
 
     @abstractmethod
-    async def image_to_image(self, image_path: str, prompt: str) -> GenerationResult:
-        """圖片 + 文字 → 圖片（prompt 必填）。"""
+    async def image_to_image(self, image_path: str, prompt: str, guidance_scale: float) -> GenerationResult:
+        """圖片 + 編輯指令 → 圖片（prompt 必填，指令式編輯保留人物）。guidance_scale 越高越照指令。"""
         raise NotImplementedError

@@ -91,8 +91,8 @@ class MockProvider(MediaProvider):
     async def image_to_video(self, image_path: str, prompt: str | None, duration: int) -> GenerationResult:
         return await self._render_video(f"[MOCK img] {prompt or 'image'} ({duration}s)", duration)
 
-    async def text_to_image(self, prompt: str) -> GenerationResult:
-        return await self._render_image(f"[MOCK] {prompt}")
+    async def text_to_image(self, prompt: str, guidance_scale: float) -> GenerationResult:
+        return await self._render_image(f"[MOCK] {prompt} (g={guidance_scale:.1f})")
 
-    async def image_to_image(self, image_path: str, prompt: str) -> GenerationResult:
-        return await self._render_image(f"[MOCK img2img] {prompt}")
+    async def image_to_image(self, image_path: str, prompt: str, guidance_scale: float) -> GenerationResult:
+        return await self._render_image(f"[MOCK kontext g={guidance_scale:.1f}] {prompt}")

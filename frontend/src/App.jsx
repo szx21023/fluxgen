@@ -25,7 +25,10 @@ const PROMPT_HINTS = {
   text_to_video: { label: "描述你想要的影片", ph: "例：夕陽下海浪拍打沙灘，鏡頭緩緩推進" },
   text_to_image: { label: "描述你想要的圖片", ph: "例：賽博龐克城市夜景，霓虹反射在濕潤地面" },
   image_to_video: { label: "補充描述（可選）", ph: "例：讓畫面中的人物微笑並轉頭" },
-  image_to_image: { label: "描述想要的風格/變化（必填）", ph: "例：改成水彩畫風格" },
+  image_to_image: {
+    label: "編輯指令（必填）",
+    ph: "例：同一個人，改成坐在椅子上的姿勢 / 換成水彩畫風格",
+  },
 };
 
 function formatBytes(bytes) {
@@ -38,6 +41,7 @@ export default function App() {
   const [mode, setMode] = useState("text_to_video");
   const [prompt, setPrompt] = useState("");
   const [duration, setDuration] = useState(5);
+  const [guidance, setGuidance] = useState(3.5);
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [job, setJob] = useState(null);
@@ -90,8 +94,8 @@ export default function App() {
       let created;
       if (mode === "text_to_video") created = await submitTextJob(prompt, duration);
       else if (mode === "image_to_video") created = await submitImageJob(file, prompt, duration);
-      else if (mode === "text_to_image") created = await submitTextImageJob(prompt);
-      else created = await submitImageImageJob(file, prompt);
+      else if (mode === "text_to_image") created = await submitTextImageJob(prompt, guidance);
+      else created = await submitImageImageJob(file, prompt, guidance);
       setJob(created);
       stopPoll.current = pollJob(created.id, setJob);
     } catch (err) {
@@ -176,6 +180,21 @@ export default function App() {
               ))}
             </div>
             {duration === 10 && <span className="hint">10 秒約為 5 秒的 2 倍費用</span>}
+          </div>
+        )}
+
+        {mode.endsWith("_image") && (
+          <div className="field">
+            <span>描述貼合度（guidance）：{guidance.toFixed(1)}</span>
+            <input
+              type="range"
+              min="1.5"
+              max="10"
+              step="0.5"
+              value={guidance}
+              onChange={(e) => setGuidance(parseFloat(e.target.value))}
+            />
+            <span className="hint">越高越照你的描述/指令走（預設 3.5）</span>
           </div>
         )}
 

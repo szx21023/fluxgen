@@ -20,9 +20,10 @@ class Settings(BaseSettings):
     fal_key: str = ""
     fal_text_model: str = "fal-ai/kling-video/v2/standard/text-to-video"
     fal_image_model: str = "fal-ai/kling-video/v2/standard/image-to-video"
-    # 生圖模型（FLUX.1 [dev]）；換模型只改 .env，回應格式同為 {"images":[{"url"...}]}
+    # 生圖模型；回應格式同為 {"images":[{"url"...}]}。換模型只改 .env。
+    # 文生圖：FLUX.1 [dev]。圖生圖：FLUX.1 Kontext（指令式編輯，prompt 為編輯指令、保留人物，不吃 strength）。
     fal_text_image_model: str = "fal-ai/flux/dev"
-    fal_image_image_model: str = "fal-ai/flux/dev/image-to-image"
+    fal_image_image_model: str = "fal-ai/flux-pro/kontext"
 
     # 逗號分隔的允許來源
     cors_origins: str = "http://localhost:5173"
