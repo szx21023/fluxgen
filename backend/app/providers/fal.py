@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import json
 from pathlib import Path
 
 import httpx
@@ -17,6 +18,13 @@ _MAX_WAIT = 600  # 秒；文生影片有時要好幾分鐘
 # 避免依賴 OS 的 /etc/mime.types（精簡環境可能認不得 .webp 而誤判成 png）。
 _EXT_TO_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
 
+_DETAIL_MAX = 300
+
+
+def _clip(text: str) -> str:
+    """截斷過長訊息；被截斷時加註，避免誤把片段當成完整原文。"""
+    return text if len(text) <= _DETAIL_MAX else text[:_DETAIL_MAX] + "…(truncated)"
+
 
 def _fal_detail(resp: httpx.Response) -> str:
     """從 fal 回應裡撈出人看得懂的錯誤訊息。
@@ -26,12 +34,13 @@ def _fal_detail(resp: httpx.Response) -> str:
     """
     try:
         body = resp.json()
-    except Exception:
+    except (ValueError, json.JSONDecodeError):
+        # 非 JSON body（含空 body / 壞編碼 → UnicodeDecodeError 亦為 ValueError 子類）
         text = resp.text.strip()
-        return text[:300] if text else f"HTTP {resp.status_code}"
+        return _clip(text) if text else f"HTTP {resp.status_code}"
     if isinstance(body, dict) and body.get("detail"):
         return str(body["detail"])
-    return f"HTTP {resp.status_code}: {str(body)[:300]}"
+    return f"HTTP {resp.status_code}: {_clip(str(body))}"
 
 
 def _raise_for_status(resp: httpx.Response, action: str) -> None:
