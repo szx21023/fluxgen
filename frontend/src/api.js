@@ -27,6 +27,26 @@ export async function submitImageJob(file, prompt, duration) {
   return res.json();
 }
 
+export async function submitTextImageJob(prompt, guidanceScale) {
+  const res = await fetch("/api/jobs/text-to-image", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, guidance_scale: guidanceScale }),
+  });
+  if (!res.ok) throw new Error(await errorMessage(res, "提交失敗"));
+  return res.json();
+}
+
+export async function submitImageImageJob(file, prompt, guidanceScale) {
+  const form = new FormData();
+  form.append("image", file);
+  form.append("prompt", prompt);
+  form.append("guidance_scale", guidanceScale);
+  const res = await fetch("/api/jobs/image-to-image", { method: "POST", body: form });
+  if (!res.ok) throw new Error(await errorMessage(res, "提交失敗"));
+  return res.json();
+}
+
 export async function getJob(jobId) {
   const res = await fetch(`/api/jobs/${jobId}`);
   if (!res.ok) throw new Error(await errorMessage(res, "查詢任務失敗"));

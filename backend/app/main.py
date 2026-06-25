@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +12,8 @@ from app.config import OUTPUT_DIR, UPLOAD_DIR, settings
 from app.schemas import (
     ALLOWED_DURATIONS,
     DEFAULT_DURATION,
+    DEFAULT_GUIDANCE,
+    CreateTextImageJobRequest,
     CreateTextJobRequest,
     JobKind,
     JobResponse,
@@ -49,7 +52,7 @@ async def reject_oversized_upload(request: Request, call_next):
     這裡趁早攔截一般 client（瀏覽器上傳 multipart 一定帶 Content-Length）。
     不帶、或無法解析 Content-Length 的 chunked 上傳，仍會落到 handler 的串流檢查。
     """
-    if request.method == "POST" and request.url.path == "/api/jobs/image":
+    if request.method == "POST" and request.url.path in ("/api/jobs/image", "/api/jobs/image-to-image"):
         content_length = request.headers.get("content-length")
         try:
             declared = int(content_length) if content_length else None
@@ -99,26 +102,18 @@ def create_text_job(req: CreateTextJobRequest, bg: BackgroundTasks) -> JobRespon
     return JobResponse.from_job(job)
 
 
-@app.post("/api/jobs/image", response_model=JobResponse)
-async def create_image_job(
-    bg: BackgroundTasks,
-    image: UploadFile = File(...),
-    prompt: str | None = Form(None),
-    # multipart 欄位是字串，int 會把 "5" 轉成 5；允許值由下方手動檢查（不能用
-    # Literal[int]，那對字串表單值會驗不過）。
-    duration: int = Form(DEFAULT_DURATION),
-) -> JobResponse:
-    """圖生影片：上傳圖片(+可選文字)，立刻回 job_id。"""
+async def _save_validated_upload(image: UploadFile) -> Path:
+    """驗證並串流寫入上傳圖片，回存檔路徑（圖生影片 / 圖生圖共用）。
+
+    content_type 早期粗篩 → magic bytes 驗實際內容（可偽造的 content_type/filename
+    一律不採信，副檔名由偵測型別決定）→ 分塊串流寫入並累計大小，超過上限就中止、
+    清掉半成品、回 413。
+    """
     if image.content_type not in _ALLOWED_IMAGE:
         raise HTTPException(400, f"不支援的圖片格式: {image.content_type}")
-    if duration not in ALLOWED_DURATIONS:
-        allowed = " / ".join(str(d) for d in ALLOWED_DURATIONS)
-        raise HTTPException(422, f"duration 只接受 {allowed} 秒")
 
     max_bytes = settings.max_upload_mb * 1024 * 1024
-
-    # 先讀第一塊，用 magic bytes 驗實際內容（上面的 content_type 只是早期粗篩，可偽造）。
-    # 通不過就連寫檔都不做；副檔名由偵測型別決定，不採信 client 的 filename。
+    # 先讀第一塊，用 magic bytes 驗實際內容（content_type 只是早期粗篩，可偽造）。
     first = await image.read(_UPLOAD_CHUNK)
     detected = _sniff_image_type(first)
     if detected is None:
@@ -126,7 +121,6 @@ async def create_image_job(
     _, ext = detected
     dest = UPLOAD_DIR / f"{uuid.uuid4().hex}{ext}"
 
-    # 串流分塊寫入並累計大小：超過上限就中止、清掉半成品、回 413。
     total = 0
     try:
         with dest.open("wb") as out:
@@ -140,12 +134,74 @@ async def create_image_job(
     except Exception:
         dest.unlink(missing_ok=True)
         raise
+    return dest
 
+
+@app.post("/api/jobs/image", response_model=JobResponse)
+async def create_image_job(
+    bg: BackgroundTasks,
+    image: UploadFile = File(...),
+    prompt: str | None = Form(None),
+    # multipart 欄位是字串，int 會把 "5" 轉成 5；允許值由下方手動檢查（不能用
+    # Literal[int]，那對字串表單值會驗不過）。
+    duration: int = Form(DEFAULT_DURATION),
+) -> JobResponse:
+    """圖生影片：上傳圖片(+可選文字)，立刻回 job_id。"""
+    if duration not in ALLOWED_DURATIONS:
+        allowed = " / ".join(str(d) for d in ALLOWED_DURATIONS)
+        raise HTTPException(422, f"duration 只接受 {allowed} 秒")
+    dest = await _save_validated_upload(image)
     job = jobs.create_job(
         JobKind.image_to_video,
         prompt=(prompt or "").strip() or None,
         image_path=str(dest),
         duration=duration,
+    )
+    bg.add_task(jobs.run_job, job.id)
+    return JobResponse.from_job(job)
+
+
+def _validate_guidance(guidance_scale: float) -> None:
+    if not 1 <= guidance_scale <= 20:
+        raise HTTPException(422, "guidance_scale 需介於 1 到 20 之間")
+
+
+@app.post("/api/jobs/text-to-image", response_model=JobResponse)
+def create_text_image_job(req: CreateTextImageJobRequest, bg: BackgroundTasks) -> JobResponse:
+    """文生圖：提交文字，立刻回 job_id，圖片在背景生成。"""
+    if not req.prompt.strip():
+        raise HTTPException(400, "prompt 不可為空")
+    _validate_guidance(req.guidance_scale)
+    job = jobs.create_job(
+        JobKind.text_to_image,
+        prompt=req.prompt.strip(),
+        image_path=None,
+        duration=DEFAULT_DURATION,
+        guidance_scale=req.guidance_scale,
+    )
+    bg.add_task(jobs.run_job, job.id)
+    return JobResponse.from_job(job)
+
+
+@app.post("/api/jobs/image-to-image", response_model=JobResponse)
+async def create_image_image_job(
+    bg: BackgroundTasks,
+    image: UploadFile = File(...),
+    prompt: str = Form(...),
+    # prompt 貼合度（CFG）：越高越照編輯指令。範圍 [1, 20]。
+    guidance_scale: float = Form(DEFAULT_GUIDANCE),
+) -> JobResponse:
+    """圖生圖（FLUX Kontext 指令式編輯）：上傳圖片 + 編輯指令（必填），立刻回 job_id。"""
+    if not prompt.strip():
+        raise HTTPException(400, "prompt 不可為空")
+    _validate_guidance(guidance_scale)
+    dest = await _save_validated_upload(image)
+    job = jobs.create_job(
+        JobKind.image_to_image,
+        prompt=prompt.strip(),
+        image_path=str(dest),
+        duration=DEFAULT_DURATION,
+        guidance_scale=guidance_scale,
     )
     bg.add_task(jobs.run_job, job.id)
     return JobResponse.from_job(job)

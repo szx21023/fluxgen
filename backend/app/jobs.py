@@ -5,7 +5,7 @@ import uuid
 from app.config import OUTPUT_DIR
 from app.providers import get_provider
 from app.providers.base import GenerationResult, ProviderError
-from app.schemas import Job, JobKind, JobStatus
+from app.schemas import DEFAULT_GUIDANCE, Job, JobKind, JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,13 @@ def _now() -> float:
     return time.time()
 
 
-def create_job(kind: JobKind, prompt: str | None, image_path: str | None, duration: int) -> Job:
+def create_job(
+    kind: JobKind,
+    prompt: str | None,
+    image_path: str | None,
+    duration: int,
+    guidance_scale: float | None = None,
+) -> Job:
     job_id = uuid.uuid4().hex
     job = Job(
         id=job_id,
@@ -26,6 +32,7 @@ def create_job(kind: JobKind, prompt: str | None, image_path: str | None, durati
         prompt=prompt,
         image_path=image_path,
         duration=duration,
+        guidance_scale=guidance_scale,
         provider=get_provider().name,
         created_at=_now(),
         updated_at=_now(),
@@ -59,11 +66,17 @@ async def run_job(job_id: str) -> None:
     try:
         if job.kind is JobKind.text_to_video:
             result: GenerationResult = await provider.text_to_video(job.prompt or "", job.duration)
-        else:
+        elif job.kind is JobKind.image_to_video:
             result = await provider.image_to_video(job.image_path or "", job.prompt, job.duration)
+        elif job.kind is JobKind.text_to_image:
+            result = await provider.text_to_image(job.prompt or "", job.guidance_scale or DEFAULT_GUIDANCE)
+        else:  # image_to_image
+            result = await provider.image_to_image(
+                job.image_path or "", job.prompt or "", job.guidance_scale or DEFAULT_GUIDANCE
+            )
 
         out_path = OUTPUT_DIR / f"{job_id}.{result.ext}"
-        out_path.write_bytes(result.video_bytes)
+        out_path.write_bytes(result.media_bytes)
         _set_status(job, JobStatus.done, video_url=f"/files/outputs/{out_path.name}")
     except ProviderError as exc:
         # 已整理過、可直接給使用者看的失敗原因；後端留一筆紀錄即可，不需完整堆疊。

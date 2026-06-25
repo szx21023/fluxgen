@@ -1,11 +1,34 @@
 import { useEffect, useRef, useState } from "react";
-import { pollJob, submitImageJob, submitTextJob } from "./api";
+import {
+  pollJob,
+  submitImageImageJob,
+  submitImageJob,
+  submitTextImageJob,
+  submitTextJob,
+} from "./api";
 
 const STATUS_LABEL = {
   pending: "排隊中…",
   running: "AI 生成中…",
   done: "完成",
   failed: "失敗",
+};
+
+const TABS = [
+  { key: "text_to_video", label: "文字 → 影片" },
+  { key: "image_to_video", label: "圖片 → 影片" },
+  { key: "text_to_image", label: "文字 → 圖片" },
+  { key: "image_to_image", label: "圖片 → 圖片" },
+];
+
+const PROMPT_HINTS = {
+  text_to_video: { label: "描述你想要的影片", ph: "例：夕陽下海浪拍打沙灘，鏡頭緩緩推進" },
+  text_to_image: { label: "描述你想要的圖片", ph: "例：賽博龐克城市夜景，霓虹反射在濕潤地面" },
+  image_to_video: { label: "補充描述（可選）", ph: "例：讓畫面中的人物微笑並轉頭" },
+  image_to_image: {
+    label: "編輯指令（必填）",
+    ph: "例：同一個人，改成坐在椅子上的姿勢 / 換成水彩畫風格",
+  },
 };
 
 function formatBytes(bytes) {
@@ -15,9 +38,10 @@ function formatBytes(bytes) {
 }
 
 export default function App() {
-  const [mode, setMode] = useState("text"); // "text" | "image"
+  const [mode, setMode] = useState("text_to_video");
   const [prompt, setPrompt] = useState("");
   const [duration, setDuration] = useState(5);
+  const [guidance, setGuidance] = useState(3.5);
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [job, setJob] = useState(null);
@@ -25,6 +49,12 @@ export default function App() {
   const [error, setError] = useState(null);
   const stopPoll = useRef(null);
   const fileInputRef = useRef(null);
+
+  // 各模式的輸入需求
+  const needsFile = mode === "image_to_video" || mode === "image_to_image";
+  const isVideo = mode === "text_to_video" || mode === "image_to_video";
+  // 只有「圖生影片」的 prompt 是選填，其餘三種都必填
+  const promptRequired = mode !== "image_to_video";
 
   // 卸載時停止輪詢
   useEffect(() => () => stopPoll.current?.(), []);
@@ -61,10 +91,11 @@ export default function App() {
 
     try {
       setBusy(true);
-      const created =
-        mode === "text"
-          ? await submitTextJob(prompt, duration)
-          : await submitImageJob(file, prompt, duration);
+      let created;
+      if (mode === "text_to_video") created = await submitTextJob(prompt, duration);
+      else if (mode === "image_to_video") created = await submitImageJob(file, prompt, duration);
+      else if (mode === "text_to_image") created = await submitTextImageJob(prompt, guidance);
+      else created = await submitImageImageJob(file, prompt, guidance);
       setJob(created);
       stopPoll.current = pollJob(created.id, setJob);
     } catch (err) {
@@ -75,24 +106,29 @@ export default function App() {
   }
 
   const inProgress = job && (job.status === "pending" || job.status === "running");
-  const canSubmit = !busy && !inProgress && (mode === "text" ? prompt.trim() : file);
+  const canSubmit =
+    !busy && !inProgress && (!needsFile || file) && (!promptRequired || prompt.trim());
+  const hint = PROMPT_HINTS[mode];
 
   return (
     <div className="app">
-      <h1>AI 影片生成</h1>
-      <p className="sub">上傳圖片或輸入文字，交給 AI 生成影片</p>
+      <h1>AI 影片 / 圖片生成</h1>
+      <p className="sub">上傳圖片或輸入文字，交給 AI 生成影片或圖片</p>
 
       <div className="tabs">
-        <button className={mode === "text" ? "active" : ""} onClick={() => switchMode("text")}>
-          文字 → 影片
-        </button>
-        <button className={mode === "image" ? "active" : ""} onClick={() => switchMode("image")}>
-          圖片 → 影片
-        </button>
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            className={mode === t.key ? "active" : ""}
+            onClick={() => switchMode(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       <form onSubmit={handleSubmit} className="card">
-        {mode === "image" && (
+        {needsFile && (
           <label className="field">
             <span>圖片</span>
             <input
@@ -119,35 +155,48 @@ export default function App() {
         )}
 
         <label className="field">
-          <span>{mode === "text" ? "描述你想要的影片" : "補充描述（可選）"}</span>
+          <span>{hint.label}</span>
           <textarea
             rows={3}
             value={prompt}
-            placeholder={
-              mode === "text"
-                ? "例：夕陽下海浪拍打沙灘，鏡頭緩緩推進"
-                : "例：讓畫面中的人物微笑並轉頭"
-            }
+            placeholder={hint.ph}
             onChange={(e) => setPrompt(e.target.value)}
           />
         </label>
 
-        <div className="field">
-          <span>影片時長</span>
-          <div className="duration">
-            {[5, 10].map((d) => (
-              <button
-                key={d}
-                type="button"
-                className={duration === d ? "active" : ""}
-                onClick={() => setDuration(d)}
-              >
-                {d} 秒
-              </button>
-            ))}
+        {isVideo && (
+          <div className="field">
+            <span>影片時長</span>
+            <div className="duration">
+              {[5, 10].map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  className={duration === d ? "active" : ""}
+                  onClick={() => setDuration(d)}
+                >
+                  {d} 秒
+                </button>
+              ))}
+            </div>
+            {duration === 10 && <span className="hint">10 秒約為 5 秒的 2 倍費用</span>}
           </div>
-          {duration === 10 && <span className="hint">10 秒約為 5 秒的 2 倍費用</span>}
-        </div>
+        )}
+
+        {mode.endsWith("_image") && (
+          <div className="field">
+            <span>描述貼合度（guidance）：{guidance.toFixed(1)}</span>
+            <input
+              type="range"
+              min="1.5"
+              max="10"
+              step="0.5"
+              value={guidance}
+              onChange={(e) => setGuidance(parseFloat(e.target.value))}
+            />
+            <span className="hint">越高越照你的描述/指令走（預設 3.5）</span>
+          </div>
+        )}
 
         <button type="submit" disabled={!canSubmit}>
           {inProgress ? "生成中…" : "開始生成"}
@@ -166,9 +215,18 @@ export default function App() {
 
           {job.status === "failed" && <div className="error">{job.error}</div>}
 
-          {job.status === "done" && job.video_url && (
-            <video key={job.video_url} src={job.video_url} controls autoPlay loop />
-          )}
+          {job.status === "done" &&
+            job.video_url &&
+            (job.kind.endsWith("_image") ? (
+              <img
+                className="result-media"
+                key={job.video_url}
+                src={job.video_url}
+                alt="生成結果"
+              />
+            ) : (
+              <video key={job.video_url} src={job.video_url} controls autoPlay loop />
+            ))}
         </div>
       )}
     </div>
