@@ -22,6 +22,8 @@ class JobStatus(str, Enum):
 class JobKind(str, Enum):
     text_to_video = "text_to_video"
     image_to_video = "image_to_video"
+    text_to_image = "text_to_image"
+    image_to_image = "image_to_image"
 
 
 class Job(BaseModel):
@@ -42,6 +44,12 @@ class Job(BaseModel):
 class CreateTextJobRequest(BaseModel):
     prompt: str
     duration: VideoDuration = DEFAULT_DURATION
+
+
+class CreateTextImageJobRequest(BaseModel):
+    """文字生圖：只需 prompt，生圖無 duration 概念。"""
+
+    prompt: str
 
 
 class JobResponse(BaseModel):

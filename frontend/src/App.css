@@ -220,11 +220,17 @@ form button[type="submit"]:disabled {
   color: #fca5a5;
 }
 
-.result video {
+.result video,
+.result .result-media {
   width: 100%;
   margin-top: 14px;
   border-radius: 8px;
   background: #000;
+}
+
+.result .result-media {
+  display: block;
+  object-fit: contain;
 }
 
 .error {

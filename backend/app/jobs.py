@@ -59,11 +59,15 @@ async def run_job(job_id: str) -> None:
     try:
         if job.kind is JobKind.text_to_video:
             result: GenerationResult = await provider.text_to_video(job.prompt or "", job.duration)
-        else:
+        elif job.kind is JobKind.image_to_video:
             result = await provider.image_to_video(job.image_path or "", job.prompt, job.duration)
+        elif job.kind is JobKind.text_to_image:
+            result = await provider.text_to_image(job.prompt or "")
+        else:  # image_to_image
+            result = await provider.image_to_image(job.image_path or "", job.prompt or "")
 
         out_path = OUTPUT_DIR / f"{job_id}.{result.ext}"
-        out_path.write_bytes(result.video_bytes)
+        out_path.write_bytes(result.media_bytes)
         _set_status(job, JobStatus.done, video_url=f"/files/outputs/{out_path.name}")
     except ProviderError as exc:
         # 已整理過、可直接給使用者看的失敗原因；後端留一筆紀錄即可，不需完整堆疊。
