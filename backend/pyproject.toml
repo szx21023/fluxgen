@@ -1,0 +1,35 @@
+# 後端工具設定（ruff lint+format、bandit 安全掃描）。
+# 依賴本身仍由 requirements.txt 管理；此檔只放工具設定，供 pre-commit 讀取。
+
+# ---- Ruff：lint + format（取代 black / isort / flake8）----
+[tool.ruff]
+target-version = "py311"
+# 放寬到 120：超標者多為中文註解/字串，程式碼本身仍由 format 收斂
+line-length = 120
+exclude = [".venv", "uploads", "outputs"]
+
+[tool.ruff.lint]
+# E/W=pycodestyle, F=pyflakes, I=isort, UP=pyupgrade, B=bugbear, C4=comprehensions
+select = ["E", "W", "F", "I", "UP", "B", "C4"]
+# UP042:(str, Enum) 為合法慣用寫法，改 StrEnum 對 Pydantic 序列化行為有變動風險，故豁免
+ignore = ["UP042"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI 慣用 Depends()/Form()/File()/... 當參數預設值，B008 對此為誤報，列入豁免
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Form",
+    "fastapi.File",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# ---- bandit：Python 程式碼安全掃描 ----
+# 掃描範圍由 pre-commit 的 `files: ^backend/` 控制；.venv/uploads/outputs 皆 gitignore，
+# 不會進掃描，故此處不需 exclude_dirs（bandit 的 exclude_dirs 相對 CWD，寫了也對不上）。
+[tool.bandit]

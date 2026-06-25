@@ -30,8 +30,6 @@ class VideoProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def image_to_video(
-        self, image_path: str, prompt: str | None, duration: int
-    ) -> GenerationResult:
+    async def image_to_video(self, image_path: str, prompt: str | None, duration: int) -> GenerationResult:
         """圖片(+可選文字) → 影片。duration 為影片秒數。"""
         raise NotImplementedError

@@ -111,9 +111,7 @@ async def create_image_job(
             while chunk := await image.read(_UPLOAD_CHUNK):
                 total += len(chunk)
                 if total > max_bytes:
-                    raise HTTPException(
-                        413, f"圖片過大，上限為 {settings.max_upload_mb} MB"
-                    )
+                    raise HTTPException(413, f"圖片過大，上限為 {settings.max_upload_mb} MB")
                 out.write(chunk)
     except Exception:
         dest.unlink(missing_ok=True)

@@ -47,26 +47,19 @@ class FalProvider(VideoProvider):
 
     def __init__(self) -> None:
         if not settings.fal_key:
-            raise RuntimeError(
-                "VIDEO_PROVIDER=fal 但沒有設定 FAL_KEY。"
-                "請到 https://fal.ai 申請後填進 .env。"
-            )
+            raise RuntimeError("VIDEO_PROVIDER=fal 但沒有設定 FAL_KEY。請到 https://fal.ai 申請後填進 .env。")
         self._headers = {"Authorization": f"Key {settings.fal_key}"}
 
     async def _submit_and_wait(self, model: str, payload: dict) -> GenerationResult:
         async with httpx.AsyncClient(timeout=60) as client:
             # 1) 提交任務到佇列
-            submit = await client.post(
-                f"{_QUEUE_BASE}/{model}", headers=self._headers, json=payload
-            )
+            submit = await client.post(f"{_QUEUE_BASE}/{model}", headers=self._headers, json=payload)
             _raise_for_status(submit, "提交任務")
             queued = submit.json()
             status_url = queued.get("status_url")
             response_url = queued.get("response_url")
             if not status_url or not response_url:
-                raise RuntimeError(
-                    f"fal.ai 提交回應缺少 status_url/response_url：{str(queued)[:300]}"
-                )
+                raise RuntimeError(f"fal.ai 提交回應缺少 status_url/response_url：{str(queued)[:300]}")
 
             # 2) 輪詢直到完成
             waited = 0.0
@@ -95,8 +88,7 @@ class FalProvider(VideoProvider):
             if not video_url:
                 detail = result.get("detail") if isinstance(result, dict) else None
                 raise RuntimeError(
-                    "fal.ai 回應沒有影片 URL（可能是 model 路徑無效或回傳格式改變）："
-                    f"{detail or str(result)[:300]}"
+                    f"fal.ai 回應沒有影片 URL（可能是 model 路徑無效或回傳格式改變）：{detail or str(result)[:300]}"
                 )
             video = await client.get(video_url)
             _raise_for_status(video, "下載影片")
@@ -104,13 +96,9 @@ class FalProvider(VideoProvider):
 
     async def text_to_video(self, prompt: str, duration: int) -> GenerationResult:
         # Kling 的 duration 是字串列舉（"5" / "10"）
-        return await self._submit_and_wait(
-            settings.fal_text_model, {"prompt": prompt, "duration": str(duration)}
-        )
+        return await self._submit_and_wait(settings.fal_text_model, {"prompt": prompt, "duration": str(duration)})
 
-    async def image_to_video(
-        self, image_path: str, prompt: str | None, duration: int
-    ) -> GenerationResult:
+    async def image_to_video(self, image_path: str, prompt: str | None, duration: int) -> GenerationResult:
         # fal.ai 接受 data URI 當作圖片輸入，免去另外上傳圖床
         path = Path(image_path)
         mime = mimetypes.guess_type(path.name)[0] or "image/png"
