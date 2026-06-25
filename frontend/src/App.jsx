@@ -74,10 +74,8 @@ export default function App() {
     }
   }
 
-  const inProgress =
-    job && (job.status === "pending" || job.status === "running");
-  const canSubmit =
-    !busy && !inProgress && (mode === "text" ? prompt.trim() : file);
+  const inProgress = job && (job.status === "pending" || job.status === "running");
+  const canSubmit = !busy && !inProgress && (mode === "text" ? prompt.trim() : file);
 
   return (
     <div className="app">
@@ -85,16 +83,10 @@ export default function App() {
       <p className="sub">上傳圖片或輸入文字，交給 AI 生成影片</p>
 
       <div className="tabs">
-        <button
-          className={mode === "text" ? "active" : ""}
-          onClick={() => switchMode("text")}
-        >
+        <button className={mode === "text" ? "active" : ""} onClick={() => switchMode("text")}>
           文字 → 影片
         </button>
-        <button
-          className={mode === "image" ? "active" : ""}
-          onClick={() => switchMode("image")}
-        >
+        <button className={mode === "image" ? "active" : ""} onClick={() => switchMode("image")}>
           圖片 → 影片
         </button>
       </div>
@@ -117,11 +109,7 @@ export default function App() {
                     {file.name}
                   </span>
                   <span className="preview-size">{formatBytes(file.size)}</span>
-                  <button
-                    type="button"
-                    className="preview-remove"
-                    onClick={clearFile}
-                  >
+                  <button type="button" className="preview-remove" onClick={clearFile}>
                     移除
                   </button>
                 </div>
@@ -131,9 +119,7 @@ export default function App() {
         )}
 
         <label className="field">
-          <span>
-            {mode === "text" ? "描述你想要的影片" : "補充描述（可選）"}
-          </span>
+          <span>{mode === "text" ? "描述你想要的影片" : "補充描述（可選）"}</span>
           <textarea
             rows={3}
             value={prompt}
@@ -160,9 +146,7 @@ export default function App() {
               </button>
             ))}
           </div>
-          {duration === 10 && (
-            <span className="hint">10 秒約為 5 秒的 2 倍費用</span>
-          )}
+          {duration === 10 && <span className="hint">10 秒約為 5 秒的 2 倍費用</span>}
         </div>
 
         <button type="submit" disabled={!canSubmit}>
@@ -180,18 +164,10 @@ export default function App() {
             <span className="provider">provider: {job.provider}</span>
           </div>
 
-          {job.status === "failed" && (
-            <div className="error">{job.error}</div>
-          )}
+          {job.status === "failed" && <div className="error">{job.error}</div>}
 
           {job.status === "done" && job.video_url && (
-            <video
-              key={job.video_url}
-              src={job.video_url}
-              controls
-              autoPlay
-              loop
-            />
+            <video key={job.video_url} src={job.video_url} controls autoPlay loop />
           )}
         </div>
       )}

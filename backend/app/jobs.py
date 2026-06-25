@@ -14,9 +14,7 @@ def _now() -> float:
     return time.time()
 
 
-def create_job(
-    kind: JobKind, prompt: str | None, image_path: str | None, duration: int
-) -> Job:
+def create_job(kind: JobKind, prompt: str | None, image_path: str | None, duration: int) -> Job:
     job_id = uuid.uuid4().hex
     job = Job(
         id=job_id,
@@ -57,13 +55,9 @@ async def run_job(job_id: str) -> None:
     _set_status(job, JobStatus.running)
     try:
         if job.kind is JobKind.text_to_video:
-            result: GenerationResult = await provider.text_to_video(
-                job.prompt or "", job.duration
-            )
+            result: GenerationResult = await provider.text_to_video(job.prompt or "", job.duration)
         else:
-            result = await provider.image_to_video(
-                job.image_path or "", job.prompt, job.duration
-            )
+            result = await provider.image_to_video(job.image_path or "", job.prompt, job.duration)
 
         out_path = OUTPUT_DIR / f"{job_id}.{result.ext}"
         out_path.write_bytes(result.video_bytes)
