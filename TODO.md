@@ -11,8 +11,8 @@
 - [ ] **驗證上傳內容**:目前只信任 client 的 `content-type` 與 `filename`,不驗實際位元組。改成嗅探 magic bytes,副檔名由偵測到的型別決定。
 - [x] **mock 無 ffmpeg 時的假成功**:`mock.py` 原本在找不到 ffmpeg 時回一個 32 bytes 的壞 mp4(`_MINIMAL_MP4`),任務卻標 `done` → 使用者看到空白播放器、零錯誤。已改為直接 raise `RuntimeError`,任務正確標 `failed` 並回明確錯誤訊息,並刪除 `_MINIMAL_MP4` 後備常數。已驗證:透過真實 HTTP 端點,有 ffmpeg → `done` 產出合法 h264 影片;無 ffmpeg(實際移出 `PATH`)→ `failed` 帶明確錯誤。
 - [ ] **fal 下載未驗內容**:`fal.py` 對下載回應只檢查 HTTP 狀態;200 的 HTML 錯誤頁 / 空 body 會被存成 `.mp4` 並標 done。加 content-type / magic-byte 檢查。
-- [ ] **錯誤可觀測性**:`jobs.py` 的 `except Exception` 把 `str(exc)` 原樣回前端(可能洩漏伺服器檔案絕對路徑),且伺服器端無 log/traceback。改為 server 端 `logger.exception(...)` + 回前端一則 sanitized 訊息。
-- [ ] **前端輪詢韌性**:`api.js` 一次網路抖動就把任務永久標「失敗」並停止輪詢;非 JSON 錯誤回應會讓 `res.json()` 丟錯蓋掉真因。加重試/退避,並 `res.json().catch(() => ({}))`。
+- [x] **錯誤可觀測性**:新增 `ProviderError`(base.py)區分「可安全顯示給使用者的失敗原因」與「非預期內部例外」。`jobs.run_job` 改為:`ProviderError` → 記 `logger.warning` + 原樣回前端(餘額/缺 ffmpeg/超時…);其他例外 → `logger.exception`(完整 traceback 只進後端 log)+ 前端只收到通用訊息「影片生成失敗,請稍後再試。」fal.py/mock.py 把策劃過的錯誤改丟 `ProviderError`。已驗證:真實 HTTP 端點下,`PermissionError`(夾絕對路徑)→ 前端只收通用訊息、路徑不外洩,後端 log 有完整 traceback;缺 ffmpeg → `ProviderError` 安全訊息 + log 僅 WARNING 無 traceback。
+- [x] **前端輪詢韌性**:`api.js` 的 `pollJob` 改為連續失敗達 `maxRetries`(預設 5)次才標失敗,重試採指數退避(2.5s→5s→10s→20s 封頂),成功一次即歸零。抽出 `errorMessage()` 以 `res.json().catch(() => ({}))` 解析錯誤 body,非 JSON 回應不再蓋掉真正狀態碼。已驗證(真實 `pollJob` 模組):抖動 3 次仍收斂到 done、持續失敗重試滿 5 次才 failed。殘留:重啟後的 404 目前也會白白重試 5 次(~37.5s)才失敗,正確處理屬下方「記憶體 job store 重啟即失 / 404 當狀態遺失」那條,待一併處理。
 
 ## Medium
 

@@ -1,10 +1,13 @@
+import logging
 import time
 import uuid
 
 from app.config import OUTPUT_DIR
 from app.providers import get_provider
-from app.providers.base import GenerationResult
+from app.providers.base import GenerationResult, ProviderError
 from app.schemas import Job, JobKind, JobStatus
+
+logger = logging.getLogger(__name__)
 
 # 簡單的記憶體任務表。正式上線可換成 Redis / DB，介面不變。
 _jobs: dict[str, Job] = {}
@@ -62,5 +65,12 @@ async def run_job(job_id: str) -> None:
         out_path = OUTPUT_DIR / f"{job_id}.{result.ext}"
         out_path.write_bytes(result.video_bytes)
         _set_status(job, JobStatus.done, video_url=f"/files/outputs/{out_path.name}")
-    except Exception as exc:  # noqa: BLE001 — 任何失敗都要記在任務上回給前端
+    except ProviderError as exc:
+        # 已整理過、可直接給使用者看的失敗原因；後端留一筆紀錄即可，不需完整堆疊。
+        logger.warning("job %s failed: %s", job_id, exc)
         _set_status(job, JobStatus.failed, error=str(exc))
+    except Exception:  # noqa: BLE001 — 任何失敗都要記在任務上，但細節不外洩
+        # 非預期例外（如 FileNotFoundError 會夾帶 uploads/ 絕對路徑）：完整堆疊只進後端 log，
+        # 前端只收到一則通用訊息，避免洩漏伺服器路徑/內部結構。
+        logger.exception("job %s crashed unexpectedly", job_id)
+        _set_status(job, JobStatus.failed, error="影片生成失敗，請稍後再試。")
